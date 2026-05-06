@@ -60,12 +60,32 @@ typedef cpuset_t cpu_set_t;
 
 /* NUMA support - declare stubs if libnuma not available */
 #ifndef MTL_HAS_NUMA
-/* NUMA stub declarations for FreeBSD when libnuma is not available */
+/*
+ * NUMA stub declarations for FreeBSD when libnuma is not available.
+ * Covers all libnuma symbols used by the MTL codebase so that FreeBSD
+ * builds succeed even without a system libnuma installation.
+ */
+
+/* Minimal bitmask type mirroring the real libnuma struct */
+struct bitmask {
+  unsigned long size;
+  unsigned long* maskp;
+};
+
+/* Basic NUMA query functions */
 int numa_available(void);
 int numa_max_node(void);
 int numa_node_of_cpu(int cpu);
+
+/* NUMA memory allocation */
 void* numa_alloc_onnode(size_t size, int node);
 void numa_free(void* mem, size_t size);
+
+/* Bitmask operations used by mt_main.c */
+struct bitmask* numa_bitmask_alloc(unsigned int n);
+struct bitmask* numa_bitmask_setbit(struct bitmask* bmp, unsigned int n);
+void numa_bind(struct bitmask* bmp);
+void numa_bitmask_free(struct bitmask* bmp);
 #else
 /* Use system libnuma */
 #include <numa.h>
