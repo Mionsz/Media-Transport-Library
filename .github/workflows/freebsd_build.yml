@@ -56,9 +56,12 @@ jobs:
           usesh: true
           copyback: false
           prepare: |
-            # Override pkg repo to use plain HTTPS (pkg+:// SRV mirrors fail in CI)
+            # Override pkg repos: use plain HTTPS quarterly to bypass SRV and avoid OS version mismatch
             mkdir -p /usr/local/etc/pkg/repos
-            echo 'FreeBSD: { url: "https://pkg.FreeBSD.org/${ABI}/latest", mirror_type: "http", signature_type: "fingerprints", fingerprints: "/usr/share/keys/pkg", enabled: yes }' > /usr/local/etc/pkg/repos/FreeBSD.conf
+            printf 'FreeBSD: { url: "https://pkg.FreeBSD.org/${ABI}/quarterly", mirror_type: "http", signature_type: "fingerprints", fingerprints: "/usr/share/keys/pkg", enabled: yes }\n' > /usr/local/etc/pkg/repos/FreeBSD.conf
+            # Disable extra repos present in some VM images that only support SRV resolution
+            printf 'FreeBSD-ports: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports.conf
+            printf 'FreeBSD-ports-kmods: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports-kmods.conf
             pkg update -f
             pkg install -y git gcc meson pkgconf ninja python3 py39-pyelftools
             pkg install -y json-c libpcap googletest
@@ -138,9 +141,12 @@ jobs:
           usesh: true
           copyback: false
           prepare: |
-            # Override pkg repo to use plain HTTPS (pkg+:// SRV mirrors fail in CI)
+            # Override pkg repos: use plain HTTPS quarterly to bypass SRV and avoid OS version mismatch
             mkdir -p /usr/local/etc/pkg/repos
-            echo 'FreeBSD: { url: "https://pkg.FreeBSD.org/${ABI}/latest", mirror_type: "http", signature_type: "fingerprints", fingerprints: "/usr/share/keys/pkg", enabled: yes }' > /usr/local/etc/pkg/repos/FreeBSD.conf
+            printf 'FreeBSD: { url: "https://pkg.FreeBSD.org/${ABI}/quarterly", mirror_type: "http", signature_type: "fingerprints", fingerprints: "/usr/share/keys/pkg", enabled: yes }\n' > /usr/local/etc/pkg/repos/FreeBSD.conf
+            # Disable extra repos present in some VM images that only support SRV resolution
+            printf 'FreeBSD-ports: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports.conf
+            printf 'FreeBSD-ports-kmods: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports-kmods.conf
             pkg update -f
             pkg install -y git gcc meson pkgconf ninja python3 py39-pyelftools
             pkg install -y json-c libpcap googletest
