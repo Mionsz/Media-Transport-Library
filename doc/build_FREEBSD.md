@@ -32,6 +32,8 @@ pkg install -y sdl2 sdl2_ttf
 pkg install -y llvm clang
 ```
 
+> Note: versioned `py*-pyelftools` packages are not consistently available across FreeBSD environments. Install `pyelftools` with `python3 -m pip install pyelftools` only if your local DPDK build explicitly requires it.
+
 ### 1.2. Verify DTrace Support
 
 FreeBSD has native DTrace support for USDT tracepoints:
