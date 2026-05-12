@@ -14,7 +14,7 @@ This guide provides instructions for building the Media Transport Library (MTL) 
 
 ```bash
 # Essential build tools
-pkg install -y git gcc meson pkgconf ninja python3 py39-pyelftools
+pkg install -y git gcc meson pkgconf ninja python3
 
 # Core libraries
 pkg install -y json-c libpcap

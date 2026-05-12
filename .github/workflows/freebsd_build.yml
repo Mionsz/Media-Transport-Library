@@ -62,10 +62,10 @@ jobs:
             # Disable extra repos present in some VM images that only support SRV resolution
             printf 'FreeBSD-ports: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports.conf
             printf 'FreeBSD-ports-kmods: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports-kmods.conf
-            pkg update -f
-            pkg install -y git gcc meson pkgconf ninja python3 py39-pyelftools
-            pkg install -y json-c libpcap googletest
-            pkg install -y numa || echo "NUMA not available, will use stubs"
+            IGNORE_OSVERSION=yes pkg update -f
+            IGNORE_OSVERSION=yes pkg install -y git gcc meson pkgconf ninja python3
+            IGNORE_OSVERSION=yes pkg install -y json-c libpcap googletest
+            IGNORE_OSVERSION=yes pkg install -y numa || echo "NUMA not available, will use stubs"
           run: |
             set -e
 
@@ -147,10 +147,10 @@ jobs:
             # Disable extra repos present in some VM images that only support SRV resolution
             printf 'FreeBSD-ports: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports.conf
             printf 'FreeBSD-ports-kmods: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports-kmods.conf
-            pkg update -f
-            pkg install -y git gcc meson pkgconf ninja python3 py39-pyelftools
-            pkg install -y json-c libpcap googletest
-            pkg install -y numa || echo "NUMA not available"
+            IGNORE_OSVERSION=yes pkg update -f
+            IGNORE_OSVERSION=yes pkg install -y git gcc meson pkgconf ninja python3
+            IGNORE_OSVERSION=yes pkg install -y json-c libpcap googletest
+            IGNORE_OSVERSION=yes pkg install -y numa || echo "NUMA not available"
           run: |
             set -e
 
