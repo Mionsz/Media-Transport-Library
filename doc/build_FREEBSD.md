@@ -131,7 +131,6 @@ git am $mtl_source_code/patches/dpdk/25.11/0007-e830-Fix-ice_ptp_adj_clock.patch
 # Configure DPDK for FreeBSD
 meson setup build \
   -Dmax_lcores=256 \
-  -Denable_kmods=false \
   -Dplatform=generic
 
 # Build
@@ -143,7 +142,6 @@ cd ..
 ```
 
 **Notes:**
-- `enable_kmods=false`: FreeBSD uses in-tree `contigmem` and `nic_uio` modules
 - Verify `numa` library detection in meson output (optional but recommended)
 
 ### 3.4. Verify DPDK Installation

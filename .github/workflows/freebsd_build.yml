@@ -63,7 +63,7 @@ jobs:
             printf 'FreeBSD-ports: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports.conf
             printf 'FreeBSD-ports-kmods: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports-kmods.conf
             IGNORE_OSVERSION=yes pkg update -f
-            IGNORE_OSVERSION=yes pkg install -y git gcc meson pkgconf ninja python3
+            IGNORE_OSVERSION=yes pkg install -y gcc meson pkgconf ninja python3
             IGNORE_OSVERSION=yes pkg install -y json-c libpcap googletest
             IGNORE_OSVERSION=yes pkg install -y numa || echo "NUMA not available, will use stubs"
           run: |
@@ -80,13 +80,15 @@ jobs:
 
             # Apply MTL patches (skip Linux-specific)
             echo "Applying DPDK patches..."
+            git config user.name "GitHub Actions"
+            git config user.email "github-actions@github.com"
             git am ../patches/dpdk/25.11/0001-e810-set-max-ring-desc-to-max-allowed-by-hardware.patch || true
             git am ../patches/dpdk/25.11/0003-ice-set-ICE_SCHED_DFLT_BURST_SIZE-to-2048.patch || true
             git am ../patches/dpdk/25.11/0004-Change-to-enable-PTP.patch || true
             git am ../patches/dpdk/25.11/0006-pcapng-add-user-timestamp-support.patch || true
 
             # Build DPDK
-            meson setup build -Dmax_lcores=256 -Denable_kmods=false -Dplatform=generic
+            meson setup build -Dmax_lcores=256 -Dplatform=generic
             ninja -C build
             ninja install -C build
             cd ..
@@ -148,7 +150,7 @@ jobs:
             printf 'FreeBSD-ports: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports.conf
             printf 'FreeBSD-ports-kmods: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports-kmods.conf
             IGNORE_OSVERSION=yes pkg update -f
-            IGNORE_OSVERSION=yes pkg install -y git gcc meson pkgconf ninja python3
+            IGNORE_OSVERSION=yes pkg install -y gcc meson pkgconf ninja python3
             IGNORE_OSVERSION=yes pkg install -y json-c libpcap googletest
             IGNORE_OSVERSION=yes pkg install -y numa || echo "NUMA not available"
           run: |
@@ -157,7 +159,7 @@ jobs:
             # Build DPDK (minimal for testing)
             git clone --depth 1 --branch v25.11 https://github.com/DPDK/dpdk.git
             cd dpdk
-            meson setup build -Dmax_lcores=256 -Denable_kmods=false
+            meson setup build -Dmax_lcores=256
             ninja -C build
             ninja install -C build
             cd ..
