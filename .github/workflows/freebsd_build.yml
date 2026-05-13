@@ -64,11 +64,9 @@ jobs:
             printf 'FreeBSD-ports-kmods: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports-kmods.conf
             IGNORE_OSVERSION=yes pkg update -f
             IGNORE_OSVERSION=yes pkg install -y pcre2 git gcc meson pkgconf ninja python3
-            IGNORE_OSVERSION=yes pkg install -y py311-pyelftools py311-pip py-setuptools
+            IGNORE_OSVERSION=yes pkg install -y py311-pyelftools
             IGNORE_OSVERSION=yes pkg install -y json-c libpcap googletest 
             IGNORE_OSVERSION=yes pkg install -y numa || echo "NUMA not available"
-            python3 -m pip install --upgrade pip setuptools wheel
-            portmaster --no-confirm -y libimagequant
           run: |
             set -e
 
@@ -154,11 +152,9 @@ jobs:
             printf 'FreeBSD-ports-kmods: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports-kmods.conf
             IGNORE_OSVERSION=yes pkg update -f
             IGNORE_OSVERSION=yes pkg install -y pcre2 git gcc meson pkgconf ninja python3
-            IGNORE_OSVERSION=yes pkg install -y py311-pyelftools py311-pip py-setuptools
+            IGNORE_OSVERSION=yes pkg install -y py311-pyelftools
             IGNORE_OSVERSION=yes pkg install -y json-c libpcap googletest 
             IGNORE_OSVERSION=yes pkg install -y numa || echo "NUMA not available"
-            python3 -m pip install --upgrade pip setuptools wheel
-            portmaster --no-confirm -y libimagequant
           run: |
             set -e
 
