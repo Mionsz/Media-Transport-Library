@@ -75,9 +75,13 @@ detect_pyelftools_pkg() {
   fi
 
   # Prefer currently installed py*-pyelftools package if present.
-  INSTALLED=$(pkg query '%n' 'py*-pyelftools' 2>/dev/null | head -n 1 || true)
+  # If multiple slots are installed, choose the newest slot deterministically.
+  INSTALLED=$(pkg query '%n' 'py[0-9]*-pyelftools' 2>/dev/null || true)
   if [ -n "$INSTALLED" ]; then
-    printf '%s' "$INSTALLED"
+    printf '%s\n' "$INSTALLED" \
+      | sed -n 's/^py\([0-9][0-9]*\)-pyelftools$/\1 &/p' \
+      | sort -nr \
+      | awk 'NR==1{print $2}'
     return
   fi
 
@@ -86,19 +90,19 @@ detect_pyelftools_pkg() {
 }
 
 install_packages() {
-  BASE_PKGS="git gcc meson pkgconf ninja python3 json-c libpcap"
+  set -- git gcc meson pkgconf ninja python3 json-c libpcap
   PYELFTOOLS_PKG=$(detect_pyelftools_pkg)
 
   log "Updating package metadata"
   pkg update -f
 
-  log "Installing required packages: $BASE_PKGS $PYELFTOOLS_PKG"
-  pkg install -y $BASE_PKGS "$PYELFTOOLS_PKG"
+  log "Installing required packages: $* $PYELFTOOLS_PKG"
+  pkg install -y "$@" "$PYELFTOOLS_PKG"
 
   if [ "$MINIMAL" -eq 0 ]; then
-    OPTIONAL_PKGS="numa googletest sdl2 sdl2_ttf llvm clang"
-    log "Installing optional packages from doc/build_FREEBSD.md: $OPTIONAL_PKGS"
-    pkg install -y $OPTIONAL_PKGS || true
+    set -- numa googletest sdl2 sdl2_ttf llvm clang
+    log "Installing optional packages from doc/build_FREEBSD.md: $*"
+    pkg install -y "$@" || true
   fi
 }
 
@@ -106,13 +110,15 @@ ensure_loader_conf_kv() {
   KEY="$1"
   VALUE="$2"
   LOADER_CONF="/boot/loader.conf"
+  ESCAPED_KEY=$(printf '%s' "$KEY" | sed 's/[][\\.^$*+?{}()|]/\\&/g')
+  ESCAPED_VALUE=$(printf '%s' "$VALUE" | sed 's/[\/&]/\\&/g')
 
   if [ ! -f "$LOADER_CONF" ]; then
     touch "$LOADER_CONF"
   fi
 
-  if grep -Eq "^${KEY}=" "$LOADER_CONF"; then
-    sed -i '' "s|^${KEY}=.*|${KEY}=\"${VALUE}\"|" "$LOADER_CONF"
+  if grep -Eq "^${ESCAPED_KEY}=" "$LOADER_CONF"; then
+    sed -i '' "s|^${ESCAPED_KEY}=.*|${KEY}=\"${ESCAPED_VALUE}\"|" "$LOADER_CONF"
   else
     printf '%s="%s"\n' "$KEY" "$VALUE" >> "$LOADER_CONF"
   fi

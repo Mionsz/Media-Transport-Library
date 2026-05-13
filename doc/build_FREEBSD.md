@@ -33,6 +33,9 @@ pkg install -y llvm clang
 ```
 
 > Note: `py311-pyelftools` is required by DPDK v25.11's Meson build system. The package name is tied to the Python 3.11 slot; if your system uses a different Python slot, adjust accordingly (e.g. `py312-pyelftools`).
+>
+> To automate prerequisite installation (including `pyelftools` slot handling), run:
+> `sudo ./scripts/freebsd_required.sh`
 
 ### 1.2. Verify DTrace Support
 
