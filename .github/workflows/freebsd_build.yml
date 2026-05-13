@@ -32,9 +32,12 @@ jobs:
 
   freebsd-build:
     needs: changes
-    if: ${{ github.repository == 'OpenVisualCloud/Media-Transport-Library' && (needs.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ github.repository == 'Fiooodooor/Media-Transport-Library' && (needs.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: write
     strategy:
       fail-fast: false
       matrix:
@@ -49,6 +52,13 @@ jobs:
       - name: Checkout MTL code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Restore DPDK cache
+        id: dpdk-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: dpdk-install-${{ matrix.freebsd_version }}
+          key: dpdk-v25.11-freebsd-${{ matrix.freebsd_version }}-${{ hashFiles('patches/dpdk/**') }}
+
       - name: Build on FreeBSD
         uses: vmactions/freebsd-vm@v1
         with:
@@ -56,11 +66,17 @@ jobs:
           usesh: true
           copyback: false
           prepare: |
-            pkg install -y git gcc meson pkgconf ninja python3 py39-pyelftools py39-pip
-            pkg install -y json-c libpcap googletest py-setuptools
-            pkg install -y numa || echo "NUMA not available, will use stubs"
-            portmaster --no-confirm -y libimagequant
-            python3 -m pip install --upgrade pip setuptools wheel
+            # Override pkg repos: use plain HTTPS quarterly to bypass SRV and avoid OS version mismatch
+            mkdir -p /usr/local/etc/pkg/repos
+            printf 'FreeBSD: { url: "https://pkg.FreeBSD.org/${ABI}/quarterly", mirror_type: "http", signature_type: "fingerprints", fingerprints: "/usr/share/keys/pkg", enabled: yes }\n' > /usr/local/etc/pkg/repos/FreeBSD.conf
+            # Disable extra repos present in some VM images that only support SRV resolution
+            printf 'FreeBSD-ports: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports.conf
+            printf 'FreeBSD-ports-kmods: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports-kmods.conf
+            IGNORE_OSVERSION=yes pkg update -f
+            IGNORE_OSVERSION=yes pkg install -y pcre2 git gcc meson pkgconf ninja python3
+            IGNORE_OSVERSION=yes pkg install -y py311-pyelftools
+            IGNORE_OSVERSION=yes pkg install -y json-c libpcap googletest 
+            IGNORE_OSVERSION=yes pkg install -y numa || echo "NUMA not available"
           run: |
             set -e
 
@@ -68,45 +84,62 @@ jobs:
             freebsd-version
             uname -a
 
-            # Clone and build DPDK
-            echo "==== Building DPDK ===="
-            git clone --depth 1 --branch v25.11 https://github.com/DPDK/dpdk.git
-            cd dpdk
+            DPDK_PREFIX="$(pwd)/dpdk-install-${{ matrix.freebsd_version }}"
 
-            # Apply MTL patches (skip Linux-specific)
-            echo "Applying DPDK patches..."
-            git am ../patches/dpdk/25.11/0001-e810-set-max-ring-desc-to-max-allowed-by-hardware.patch || true
-            git am ../patches/dpdk/25.11/0003-ice-set-ICE_SCHED_DFLT_BURST_SIZE-to-2048.patch || true
-            git am ../patches/dpdk/25.11/0004-Change-to-enable-PTP.patch || true
-            git am ../patches/dpdk/25.11/0006-pcapng-add-user-timestamp-support.patch || true
+            if [ ! -f "$DPDK_PREFIX/libdata/pkgconfig/libdpdk.pc" ] && [ ! -f "$DPDK_PREFIX/lib/pkgconfig/libdpdk.pc" ]; then
+              echo "==== Building DPDK ===="
+              git clone --depth 1 --branch v25.11 https://github.com/DPDK/dpdk.git
+              cd dpdk
 
-            # Build DPDK
-            meson setup build -Dmax_lcores=256 -Denable_kmods=false -Dplatform=generic
-            ninja -C build
-            ninja install -C build
-            cd ..
+              # Apply MTL patches (skip Linux-specific)
+              echo "Applying DPDK patches..."
+              git config user.name "GitHub Actions"
+              git config user.email "github-actions@github.com"
+              git am ../patches/dpdk/25.11/0001-e810-set-max-ring-desc-to-max-allowed-by-hardware.patch || true
+              git am ../patches/dpdk/25.11/0003-ice-set-ICE_SCHED_DFLT_BURST_SIZE-to-2048.patch || true
+              git am ../patches/dpdk/25.11/0004-Change-to-enable-PTP.patch || true
+              git am ../patches/dpdk/25.11/0006-pcapng-add-user-timestamp-support.patch || true
 
-            # Set PKG_CONFIG_PATH
-            export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+              # Skip FreeBSD kernel modules in CI VMs without /usr/src
+              sed -i '' 's/build_by_default: true/build_by_default: false/' kernel/freebsd/meson.build
 
-            # Build MTL
+              # Build DPDK and install to workspace prefix for caching
+              meson setup build --prefix="$DPDK_PREFIX" -Dmax_lcores=256 -Dplatform=generic
+              ninja -C build
+              ninja install -C build
+              cd ..
+            else
+              echo "==== DPDK cache hit — skipping build ===="
+            fi
+
+            # Set PKG_CONFIG_PATH to the workspace DPDK install
+            export PKG_CONFIG_PATH="$DPDK_PREFIX/libdata/pkgconfig:$DPDK_PREFIX/lib/pkgconfig"
+
+            # Build MTL (inline meson/ninja; build.sh uses bash builtins unavailable in FreeBSD sh)
             echo "==== Building MTL ===="
-            ./build.sh
+            meson setup build
+            ninja -C build
 
             # Verify build
             echo "==== Verifying build ===="
             ls -lh build/lib/libmtl.so*
             nm build/lib/libmtl.so.* | grep mtl_init || echo "mtl_init symbol check"
 
-            # Check for RxTxApp
+            # Check for RxTxApp binary
             if [ -f build/tests/tools/RxTxApp/RxTxApp ]; then
               echo "RxTxApp built successfully"
-              ./build/tests/tools/RxTxApp/RxTxApp --help || echo "RxTxApp help check"
             else
-              echo "Warning: RxTxApp not found"
+              echo "Note: RxTxApp not present in this build"
             fi
 
             echo "==== FreeBSD Build Complete ===="
+
+      - name: Save DPDK cache
+        if: steps.dpdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: dpdk-install-${{ matrix.freebsd_version }}
+          key: dpdk-v25.11-freebsd-${{ matrix.freebsd_version }}-${{ hashFiles('patches/dpdk/**') }}
 
       - name: Build Summary
         if: always()
@@ -116,9 +149,12 @@ jobs:
 
   freebsd-basic-tests:
     needs: freebsd-build
-    if: ${{ github.repository == 'OpenVisualCloud/Media-Transport-Library' }}
+    if: ${{ github.repository == 'Fiooodooor/Media-Transport-Library' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - name: Harden Runner
@@ -129,6 +165,13 @@ jobs:
       - name: Checkout MTL code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Restore DPDK cache
+        id: dpdk-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: dpdk-install-14.2
+          key: dpdk-v25.11-freebsd-14.2-${{ hashFiles('patches/dpdk/**') }}
+
       - name: Run basic tests on FreeBSD
         uses: vmactions/freebsd-vm@v1
         with:
@@ -136,23 +179,37 @@ jobs:
           usesh: true
           copyback: false
           prepare: |
-            pkg install -y git gcc meson pkgconf ninja python3 py39-pyelftools py39-pip
-            pkg install -y json-c libpcap googletest py-setuptools
-            pkg install -y numa || echo "NUMA not available"
-            python3 -m pip install --upgrade pip setuptools wheel
-            portmaster --no-confirm -y libimagequant
+            # Override pkg repos: use plain HTTPS quarterly to bypass SRV and avoid OS version mismatch
+            mkdir -p /usr/local/etc/pkg/repos
+            printf 'FreeBSD: { url: "https://pkg.FreeBSD.org/${ABI}/quarterly", mirror_type: "http", signature_type: "fingerprints", fingerprints: "/usr/share/keys/pkg", enabled: yes }\n' > /usr/local/etc/pkg/repos/FreeBSD.conf
+            # Disable extra repos present in some VM images that only support SRV resolution
+            printf 'FreeBSD-ports: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports.conf
+            printf 'FreeBSD-ports-kmods: { enabled: no }\n' > /usr/local/etc/pkg/repos/FreeBSD-ports-kmods.conf
+            IGNORE_OSVERSION=yes pkg update -f
+            IGNORE_OSVERSION=yes pkg install -y pcre2 git gcc meson pkgconf ninja python3
+            IGNORE_OSVERSION=yes pkg install -y py311-pyelftools
+            IGNORE_OSVERSION=yes pkg install -y json-c libpcap googletest 
+            IGNORE_OSVERSION=yes pkg install -y numa || echo "NUMA not available"
           run: |
             set -e
 
-            # Build DPDK (minimal for testing)
-            git clone --depth 1 --branch v25.11 https://github.com/DPDK/dpdk.git
-            cd dpdk
-            meson setup build -Dmax_lcores=256 -Denable_kmods=false
-            ninja -C build
-            ninja install -C build
-            cd ..
+            DPDK_PREFIX="$(pwd)/dpdk-install-14.2"
 
-            export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+            if [ ! -f "$DPDK_PREFIX/libdata/pkgconfig/libdpdk.pc" ] && [ ! -f "$DPDK_PREFIX/lib/pkgconfig/libdpdk.pc" ]; then
+              echo "==== Building DPDK ===="
+              git clone --depth 1 --branch v25.11 https://github.com/DPDK/dpdk.git
+              cd dpdk
+              # Skip FreeBSD kernel modules in CI VMs without /usr/src
+              sed -i '' 's/build_by_default: true/build_by_default: false/' kernel/freebsd/meson.build
+              meson setup build --prefix="$DPDK_PREFIX" -Dmax_lcores=256 -Dplatform=generic
+              ninja -C build
+              ninja install -C build
+              cd ..
+            else
+              echo "==== DPDK cache hit — skipping build ===="
+            fi
+
+            export PKG_CONFIG_PATH="$DPDK_PREFIX/libdata/pkgconfig:$DPDK_PREFIX/lib/pkgconfig"
 
             # Build MTL with tests
             meson setup build -Denable_unit_tests=true
@@ -161,3 +218,10 @@ jobs:
             # Run the test script
             chmod +x .github/scripts/freebsd_tests.sh
             ./.github/scripts/freebsd_tests.sh
+
+      - name: Save DPDK cache
+        if: steps.dpdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: dpdk-install-14.2
+          key: dpdk-v25.11-freebsd-14.2-${{ hashFiles('patches/dpdk/**') }}

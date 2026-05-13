@@ -14,7 +14,7 @@ This guide provides instructions for building the Media Transport Library (MTL) 
 
 ```bash
 # Essential build tools
-pkg install -y git gcc meson pkgconf ninja python3 py39-pyelftools
+pkg install -y git gcc meson pkgconf ninja python3 py311-pyelftools
 
 # Core libraries
 pkg install -y json-c libpcap
@@ -31,6 +31,11 @@ pkg install -y sdl2 sdl2_ttf
 # LLVM/Clang for optimizations
 pkg install -y llvm clang
 ```
+
+> Note: `py311-pyelftools` is required by DPDK v25.11's Meson build system. The package name is tied to the Python 3.11 slot; if your system uses a different Python slot, adjust accordingly (e.g. `py312-pyelftools`).
+>
+> To automate prerequisite installation (including `pyelftools` slot handling), run:
+> `sudo ./scripts/freebsd_required.sh`
 
 ### 1.2. Verify DTrace Support
 
@@ -131,7 +136,6 @@ git am $mtl_source_code/patches/dpdk/25.11/0007-e830-Fix-ice_ptp_adj_clock.patch
 # Configure DPDK for FreeBSD
 meson setup build \
   -Dmax_lcores=256 \
-  -Denable_kmods=false \
   -Dplatform=generic
 
 # Build
@@ -143,7 +147,6 @@ cd ..
 ```
 
 **Notes:**
-- `enable_kmods=false`: FreeBSD uses in-tree `contigmem` and `nic_uio` modules
 - Verify `numa` library detection in meson output (optional but recommended)
 
 ### 3.4. Verify DPDK Installation
